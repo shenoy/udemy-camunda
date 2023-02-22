@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+
+  <meta http-equiv="cache-control" content="max-age=0" />
+  <meta http-equiv="cache-control" content="no-cache" />
+  <meta http-equiv="expires" content="0" />
+  <meta http-equiv="pragma" content="no-cache" />
+
+  <style type="text/css">
+    html, body, #canvas {
+      height: 100%;
+      padding: 0;
+    }
+    
+    .transaction-boundary {
+      background-color: rgba(180, 21, 21, 0.7);
+      border-radius: 1px;
+      min-height: 50px;
+      width: 3px;
+    }
+
+    .execution-listener {
+      background-color: rgba(21, 66, 180, 0.7);
+      color: White;
+      border-radius: 5px;
+      font-family: Arial;
+      font-size: 12px;
+      padding: 5px;
+      min-height: 16px;
+      min-width: 16px;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    .highlight:not(.djs-connection) .djs-visual > :nth-child(1) {
+      fill: rgba(66, 180, 21, 0.7) !important; /* color elements as green */
+    }
+    
+    .highlight-running .djs-visual > :nth-child(1) {
+    	fill: rgba(0, 198, 218, 0.7) !important; /* color still running flow nodes as blue */
+    }
+    
+    #info-box {
+   	  margin-left: 20px;
+      margin-top: 15px;
+      padding: 10px;
+      table-layout: fixed;
+      border-collapse: collapse;
+      position: absolute;
+      top: 0px;
+      left: 0px;
+      font-family: sans-serif;
+      line-height: 150%;
+      font-size: 80%;
+      z-index: 1000;
+      background-color: rgba(255,255,255,0.90);
+      border-radius: 10px;
+    }
+  </style>
+
+  <title>Process Test Coverage Report</title>
+</head>
+<body>
+
+  <div id="info-box">
+	<div>Process Definition Name: trading_crypto</div>
+	<div>Coverage: 68.8%</div>
+	<div>Test Class: udemy.camunda.TradingCryptoUnitTest</div>
+	<div>TestMethod: testHappyPath</div>
+  </div>
+  
+  <!-- element to draw bpmn diagram in -->
+  <div id="canvas"></div>
+
+  <!-- scripts -->
+
+  <!-- seed dependencies (required for demo only) -->
+  <script src="../bower_components/jquery/dist/jquery.js"></script>
+
+  <!-- bpmn-js viewer -->
+  <script src="../bower_components/bpmn-js/dist/bpmn-navigated-viewer.js"></script>
+
+  <!-- application -->
+  <script>
+    (function(NavigatedViewer, $) {
+
+      // create viewer
+      var bpmnViewer = new NavigatedViewer({
+        container: '#canvas'
+      });
+
+
+      // import function
+      function importXML(xml) {
+
+        // import diagram
+        bpmnViewer.importXML(xml, function(err) {
+
+          if (err) {
+            return console.error('could not import BPMN 2.0 diagram', err);
+          }
+
+          var canvas = bpmnViewer.get('canvas'),
+              overlays = bpmnViewer.get('overlays');
+
+
+          // zoom to fit full viewport
+          canvas.zoom('fit-viewport', true);
+
+      // visualizations          
+      elementRegistry = bpmnViewer.get('elementRegistry');
+      var elements = elementRegistry.getAll();
+      console.log(elements);
+      for (var i = 0; i < elements.length; i++) {
+        var element = elements[i];
+        if (element.type != 'label') {
+          
+          // Transaction Boundaries
+          if (element.businessObject.$attrs["camunda:asyncBefore"]
+                || element.businessObject.$attrs["camunda:async"]
+                || element.type == 'bpmn:ReceiveTask'
+                || element.type == 'bpmn:UserTask'
+                || element.type == 'bpmn:IntermediateCatchEvent'
+             ) {
+            overlays.add(element.id, 'note', {
+              position: {
+                bottom: (element.type == 'bpmn:IntermediateCatchEvent' ? 18 : 40),
+                left: -4
+              },
+              html: '<div class="transaction-boundary"></div>'
+            });
+          }
+          if (element.businessObject.$attrs["camunda:asyncAfter"]) {
+            overlays.add(element.id, 'note', {
+              position: {
+                bottom: 19,
+                right: -1
+              },
+              html: '<div class="transaction-boundary"></div>'
+            });
+          }
+          
+          if (element.businessObject.extensionElements) {
+            var extensionElements = element.businessObject.extensionElements.values;
+            for (var j = 0; j < extensionElements.length; j++) {
+              console.log(extensionElements[j]);
+              if (extensionElements[j].$type == 'camunda:executionListener') {
+                if (extensionElements[j].event == 'end') {
+                  overlays.add(element.id, 'note', {
+                    position: {
+                      bottom: 0,
+                      right: 0
+                    },
+                    html: '<div class="execution-listener">' + extensionElements[j].expression + '</div>'
+                  });
+                }
+                if (extensionElements[j].event == 'start') {
+                  overlays.add(element.id, 'note', {
+                    position: {
+                      bottom: 0,
+                      left: 0
+                    },
+                    html: '<div class="execution-listener">' + extensionElements[j].expression + '</div>'
+                  });
+                }
+              }
+            }
+          }
+ 
+ 		  if (element.type == 'bpmn:SequenceFlow' && element.businessObject.conditionExpression) {
+ 		      var position = {
+                      left: 0
+                    }
+              if (element.waypoints[0].y > element.waypoints[element.waypoints.length - 1].y) {
+              	position.top = -29;
+              } else {
+                position.bottom = -3;
+              }    
+          	  overlays.add(element.id, 'note', {
+                    position: position,
+                    html: '<div class="execution-listener">' + element.businessObject.conditionExpression.body + '</div>'
+                  }); 
+		  }
+          
+          if (element.businessObject.$attrs["camunda:delegateExpression"]) {
+            overlays.add(element.id, 'note', {
+              position: {
+                bottom: -3,
+                left: 0
+              },
+              html: '<div class="execution-listener">' + element.businessObject.$attrs["camunda:delegateExpression"] + '</div>'
+            });
+          }
+          
+        }
+      }          
+			canvas.addMarker('Gateway_1dfxj94', 'highlight');
+			canvas.addMarker('execute_order', 'highlight');
+			canvas.addMarker('Event_0p8ducq', 'highlight');
+			canvas.addMarker('StartEvent_1', 'highlight');
+			canvas.addMarker('Gateway_0wb5bp8', 'highlight');
+			canvas.addMarker('Event_0kp6o5d', 'highlight');
+			canvas.addMarker('get_quote', 'highlight');
+			canvas.addMarker('call_service_notification', 'highlight');
+			canvas.addMarker('Gateway_0dhgs26', 'highlight');
+			canvas.addMarker('send_execute_order_notification', 'highlight');
+			canvas.addMarker('Event_0xlvmmk', 'highlight');
+			canvas.addMarker('create_order', 'highlight');
+			$("g[data-element-id='Flow_1u17jic']").find('path').attr('stroke', '#00ff00');
+			$("g[data-element-id='Flow_1g7cftd']").find('path').attr('stroke', '#00ff00');
+			$("g[data-element-id='Flow_1a1pcj8']").find('path').attr('stroke', '#00ff00');
+			$("g[data-element-id='Flow_0ohyry0']").find('path').attr('stroke', '#00ff00');
+			$("g[data-element-id='Flow_1tbqh4z']").find('path').attr('stroke', '#00ff00');
+			$("g[data-element-id='Flow_1r7xmh4']").find('path').attr('stroke', '#00ff00');
+			$("g[data-element-id='Flow_01tx2mt']").find('path').attr('stroke', '#00ff00');
+			$("g[data-element-id='Flow_1j414xk']").find('path').attr('stroke', '#00ff00');
+			$("g[data-element-id='Flow_10k717e']").find('path').attr('stroke', '#00ff00');
+			$("g[data-element-id='Flow_1cficwu']").find('path').attr('stroke', '#00ff00');
+          //YOUR ANNOTATIONS GO HERE
+
+        });
+      }
+
+
+      var diagramXML = '<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<bpmn:definitions xmlns:bpmn=\"http:\/\/www.omg.org\/spec\/BPMN\/20100524\/MODEL\" xmlns:bpmndi=\"http:\/\/www.omg.org\/spec\/BPMN\/20100524\/DI\" xmlns:dc=\"http:\/\/www.omg.org\/spec\/DD\/20100524\/DC\" xmlns:camunda=\"http:\/\/camunda.org\/schema\/1.0\/bpmn\" xmlns:xsi=\"http:\/\/www.w3.org\/2001\/XMLSchema-instance\" xmlns:di=\"http:\/\/www.omg.org\/spec\/DD\/20100524\/DI\" xmlns:modeler=\"http:\/\/camunda.org\/schema\/modeler\/1.0\" id=\"Definitions_13yzxow\" targetNamespace=\"http:\/\/bpmn.io\/schema\/bpmn\" exporter=\"Camunda Modeler\" exporterVersion=\"5.6.0\" modeler:executionPlatform=\"Camunda Platform\" modeler:executionPlatformVersion=\"7.18.0\">\n  <bpmn:collaboration id=\"Collaboration_054lfo8\">\n    <bpmn:participant id=\"Participant_0e4y69z\" name=\"Trading Crypto\" processRef=\"trading_crypto\" \/>\n  <\/bpmn:collaboration>\n  <bpmn:process id=\"trading_crypto\" name=\"Trading Crypto\" isExecutable=\"true\" camunda:versionTag=\"v1.0\">\n    <bpmn:laneSet id=\"LaneSet_1y06odu\">\n      <bpmn:lane id=\"Lane_17cnixn\" name=\"Trading Crypto\">\n        <bpmn:flowNodeRef>get_quote<\/bpmn:flowNodeRef>\n        <bpmn:flowNodeRef>Gateway_0wb5bp8<\/bpmn:flowNodeRef>\n        <bpmn:flowNodeRef>StartEvent_1<\/bpmn:flowNodeRef>\n        <bpmn:flowNodeRef>Gateway_0dhgs26<\/bpmn:flowNodeRef>\n        <bpmn:flowNodeRef>create_order<\/bpmn:flowNodeRef>\n        <bpmn:flowNodeRef>Gateway_1dfxj94<\/bpmn:flowNodeRef>\n        <bpmn:flowNodeRef>review_order<\/bpmn:flowNodeRef>\n        <bpmn:flowNodeRef>Gateway_1gdodjg<\/bpmn:flowNodeRef>\n        <bpmn:flowNodeRef>execute_order<\/bpmn:flowNodeRef>\n        <bpmn:flowNodeRef>send_execute_order_notification<\/bpmn:flowNodeRef>\n        <bpmn:flowNodeRef>Event_0xlvmmk<\/bpmn:flowNodeRef>\n      <\/bpmn:lane>\n      <bpmn:lane id=\"Lane_0msal78\" name=\"Do Nothing\">\n        <bpmn:flowNodeRef>not_interesting_trade<\/bpmn:flowNodeRef>\n        <bpmn:flowNodeRef>Event_19euquz<\/bpmn:flowNodeRef>\n      <\/bpmn:lane>\n      <bpmn:lane id=\"Lane_00xacx5\" name=\"Notification process\">\n        <bpmn:flowNodeRef>Event_0p8ducq<\/bpmn:flowNodeRef>\n        <bpmn:flowNodeRef>Event_0kp6o5d<\/bpmn:flowNodeRef>\n        <bpmn:flowNodeRef>call_service_notification<\/bpmn:flowNodeRef>\n      <\/bpmn:lane>\n    <\/bpmn:laneSet>\n    <bpmn:serviceTask id=\"get_quote\" name=\"Get quote\" camunda:type=\"external\" camunda:topic=\"get-quote\">\n      <bpmn:incoming>Flow_10k717e<\/bpmn:incoming>\n      <bpmn:outgoing>Flow_1u17jic<\/bpmn:outgoing>\n    <\/bpmn:serviceTask>\n    <bpmn:exclusiveGateway id=\"Gateway_0wb5bp8\" default=\"Flow_0ohyry0\">\n      <bpmn:incoming>Flow_1u17jic<\/bpmn:incoming>\n      <bpmn:outgoing>Flow_0ohyry0<\/bpmn:outgoing>\n      <bpmn:outgoing>Flow_149zwbd<\/bpmn:outgoing>\n    <\/bpmn:exclusiveGateway>\n    <bpmn:startEvent id=\"StartEvent_1\">\n      <bpmn:extensionElements>\n        <camunda:formData>\n          <camunda:formField id=\"interestingTradeLimit\" label=\"Interesting Trade Limit\" type=\"long\" defaultValue=\"10000\" \/>\n        <\/camunda:formData>\n      <\/bpmn:extensionElements>\n      <bpmn:outgoing>Flow_10k717e<\/bpmn:outgoing>\n    <\/bpmn:startEvent>\n    <bpmn:exclusiveGateway id=\"Gateway_0dhgs26\" default=\"Flow_1g7cftd\">\n      <bpmn:incoming>Flow_1j414xk<\/bpmn:incoming>\n      <bpmn:outgoing>Flow_1g7cftd<\/bpmn:outgoing>\n      <bpmn:outgoing>Flow_0wrkze0<\/bpmn:outgoing>\n    <\/bpmn:exclusiveGateway>\n    <bpmn:userTask id=\"create_order\" name=\"Create order\">\n      <bpmn:extensionElements>\n        <camunda:formData>\n          <camunda:formField id=\"orderAmount\" label=\"Order amount\" type=\"long\" defaultValue=\"0\" \/>\n          <camunda:formField id=\"lastTradePrice\" label=\"Last Trade Price\" type=\"string\">\n            <camunda:validation>\n              <camunda:constraint name=\"readonly\" \/>\n            <\/camunda:validation>\n          <\/camunda:formField>\n        <\/camunda:formData>\n      <\/bpmn:extensionElements>\n      <bpmn:incoming>Flow_0ohyry0<\/bpmn:incoming>\n      <bpmn:incoming>Flow_120zqdy<\/bpmn:incoming>\n      <bpmn:outgoing>Flow_1j414xk<\/bpmn:outgoing>\n    <\/bpmn:userTask>\n    <bpmn:exclusiveGateway id=\"Gateway_1dfxj94\">\n      <bpmn:incoming>Flow_1g7cftd<\/bpmn:incoming>\n      <bpmn:incoming>Flow_1dh6ro4<\/bpmn:incoming>\n      <bpmn:outgoing>Flow_1cficwu<\/bpmn:outgoing>\n    <\/bpmn:exclusiveGateway>\n    <bpmn:userTask id=\"review_order\" name=\"Review Order\">\n      <bpmn:extensionElements>\n        <camunda:formData>\n          <camunda:formField id=\"review\" label=\"Review\" type=\"boolean\" \/>\n          <camunda:formField id=\"orderAmount\" label=\"Order Amount\" type=\"long\" defaultValue=\"0\" \/>\n        <\/camunda:formData>\n      <\/bpmn:extensionElements>\n      <bpmn:incoming>Flow_0wrkze0<\/bpmn:incoming>\n      <bpmn:outgoing>Flow_12vfzz9<\/bpmn:outgoing>\n    <\/bpmn:userTask>\n    <bpmn:exclusiveGateway id=\"Gateway_1gdodjg\" default=\"Flow_1dh6ro4\">\n      <bpmn:incoming>Flow_12vfzz9<\/bpmn:incoming>\n      <bpmn:outgoing>Flow_120zqdy<\/bpmn:outgoing>\n      <bpmn:outgoing>Flow_1dh6ro4<\/bpmn:outgoing>\n    <\/bpmn:exclusiveGateway>\n    <bpmn:sequenceFlow id=\"Flow_10k717e\" sourceRef=\"StartEvent_1\" targetRef=\"get_quote\" \/>\n    <bpmn:sequenceFlow id=\"Flow_1u17jic\" sourceRef=\"get_quote\" targetRef=\"Gateway_0wb5bp8\" \/>\n    <bpmn:sequenceFlow id=\"Flow_0ohyry0\" name=\"Interesting Quote\" sourceRef=\"Gateway_0wb5bp8\" targetRef=\"create_order\" \/>\n    <bpmn:sequenceFlow id=\"Flow_149zwbd\" name=\"Not interesting trade\" sourceRef=\"Gateway_0wb5bp8\" targetRef=\"not_interesting_trade\">\n      <bpmn:conditionExpression xsi:type=\"bpmn:tFormalExpression\">${lastTradePrice &gt; interestingTradeLimit}<\/bpmn:conditionExpression>\n    <\/bpmn:sequenceFlow>\n    <bpmn:sequenceFlow id=\"Flow_1j414xk\" sourceRef=\"create_order\" targetRef=\"Gateway_0dhgs26\" \/>\n    <bpmn:sequenceFlow id=\"Flow_1g7cftd\" name=\"Review not needed\" sourceRef=\"Gateway_0dhgs26\" targetRef=\"Gateway_1dfxj94\" \/>\n    <bpmn:sequenceFlow id=\"Flow_0wrkze0\" name=\"Review Needed\" sourceRef=\"Gateway_0dhgs26\" targetRef=\"review_order\">\n      <bpmn:conditionExpression xsi:type=\"bpmn:tFormalExpression\">${orderAmount &gt; 10000}<\/bpmn:conditionExpression>\n    <\/bpmn:sequenceFlow>\n    <bpmn:sequenceFlow id=\"Flow_120zqdy\" name=\"Modify the order\" sourceRef=\"Gateway_1gdodjg\" targetRef=\"create_order\">\n      <bpmn:conditionExpression xsi:type=\"bpmn:tFormalExpression\">${review==true}<\/bpmn:conditionExpression>\n    <\/bpmn:sequenceFlow>\n    <bpmn:sequenceFlow id=\"Flow_1cficwu\" sourceRef=\"Gateway_1dfxj94\" targetRef=\"execute_order\" \/>\n    <bpmn:sequenceFlow id=\"Flow_1dh6ro4\" name=\"Valid order\" sourceRef=\"Gateway_1gdodjg\" targetRef=\"Gateway_1dfxj94\" \/>\n    <bpmn:sequenceFlow id=\"Flow_12vfzz9\" sourceRef=\"review_order\" targetRef=\"Gateway_1gdodjg\" \/>\n    <bpmn:sequenceFlow id=\"Flow_1tbqh4z\" sourceRef=\"execute_order\" targetRef=\"send_execute_order_notification\" \/>\n    <bpmn:serviceTask id=\"execute_order\" name=\"Execute Order\" camunda:delegateExpression=\"${executeOrderService}\">\n      <bpmn:incoming>Flow_1cficwu<\/bpmn:incoming>\n      <bpmn:outgoing>Flow_1tbqh4z<\/bpmn:outgoing>\n    <\/bpmn:serviceTask>\n    <bpmn:sequenceFlow id=\"Flow_1r7xmh4\" sourceRef=\"send_execute_order_notification\" targetRef=\"Event_0xlvmmk\" \/>\n    <bpmn:sequenceFlow id=\"Flow_1x4iu4y\" sourceRef=\"not_interesting_trade\" targetRef=\"Event_19euquz\">\n      <bpmn:extensionElements \/>\n    <\/bpmn:sequenceFlow>\n    <bpmn:intermediateThrowEvent id=\"send_execute_order_notification\" name=\"Send execute order notification\">\n      <bpmn:extensionElements>\n        <camunda:executionListener event=\"start\">\n          <camunda:script scriptFormat=\"javascript\">execution.setVariable(\"message\",\"executed\")<\/camunda:script>\n        <\/camunda:executionListener>\n      <\/bpmn:extensionElements>\n      <bpmn:incoming>Flow_1tbqh4z<\/bpmn:incoming>\n      <bpmn:outgoing>Flow_1r7xmh4<\/bpmn:outgoing>\n      <bpmn:messageEventDefinition id=\"MessageEventDefinition_1cnhvrd\" messageRef=\"Message_3652qqe\" camunda:delegateExpression=\"${callNotificationProcess}\" \/>\n    <\/bpmn:intermediateThrowEvent>\n    <bpmn:endEvent id=\"Event_0xlvmmk\">\n      <bpmn:incoming>Flow_1r7xmh4<\/bpmn:incoming>\n    <\/bpmn:endEvent>\n    <bpmn:endEvent id=\"Event_0p8ducq\">\n      <bpmn:incoming>Flow_1a1pcj8<\/bpmn:incoming>\n    <\/bpmn:endEvent>\n    <bpmn:startEvent id=\"Event_0kp6o5d\">\n      <bpmn:outgoing>Flow_01tx2mt<\/bpmn:outgoing>\n      <bpmn:messageEventDefinition id=\"MessageEventDefinition_0oueqld\" messageRef=\"Message_3652qqe\" \/>\n    <\/bpmn:startEvent>\n    <bpmn:serviceTask id=\"call_service_notification\" name=\"Call Service Notification\" camunda:delegateExpression=\"${notificationService}\">\n      <bpmn:incoming>Flow_01tx2mt<\/bpmn:incoming>\n      <bpmn:outgoing>Flow_1a1pcj8<\/bpmn:outgoing>\n    <\/bpmn:serviceTask>\n    <bpmn:sequenceFlow id=\"Flow_1a1pcj8\" sourceRef=\"call_service_notification\" targetRef=\"Event_0p8ducq\" \/>\n    <bpmn:sequenceFlow id=\"Flow_01tx2mt\" sourceRef=\"Event_0kp6o5d\" targetRef=\"call_service_notification\" \/>\n    <bpmn:intermediateThrowEvent id=\"not_interesting_trade\" name=\"Not interesting trade\">\n      <bpmn:extensionElements>\n        <camunda:executionListener event=\"start\">\n          <camunda:script scriptFormat=\"javascript\">execution.setVariable(\"message\", \"not executed\");<\/camunda:script>\n        <\/camunda:executionListener>\n      <\/bpmn:extensionElements>\n      <bpmn:incoming>Flow_149zwbd<\/bpmn:incoming>\n      <bpmn:outgoing>Flow_1x4iu4y<\/bpmn:outgoing>\n      <bpmn:messageEventDefinition id=\"MessageEventDefinition_18mnz51\" messageRef=\"Message_3652qqe\" camunda:delegateExpression=\"${callNotificationProcess}\" \/>\n    <\/bpmn:intermediateThrowEvent>\n    <bpmn:endEvent id=\"Event_19euquz\">\n      <bpmn:incoming>Flow_1x4iu4y<\/bpmn:incoming>\n    <\/bpmn:endEvent>\n  <\/bpmn:process>\n  <bpmn:message id=\"Message_3652qqe\" name=\"mess_notify\" \/>\n  <bpmndi:BPMNDiagram id=\"BPMNDiagram_1\">\n    <bpmndi:BPMNPlane id=\"BPMNPlane_1\" bpmnElement=\"Collaboration_054lfo8\">\n      <bpmndi:BPMNShape id=\"Participant_0e4y69z_di\" bpmnElement=\"Participant_0e4y69z\" isHorizontal=\"true\">\n        <dc:Bounds x=\"170\" y=\"80\" width=\"1500\" height=\"710\" \/>\n        <bpmndi:BPMNLabel \/>\n      <\/bpmndi:BPMNShape>\n      <bpmndi:BPMNShape id=\"Lane_00xacx5_di\" bpmnElement=\"Lane_00xacx5\" isHorizontal=\"true\">\n        <dc:Bounds x=\"200\" y=\"640\" width=\"1470\" height=\"150\" \/>\n        <bpmndi:BPMNLabel \/>\n      <\/bpmndi:BPMNShape>\n      <bpmndi:BPMNShape id=\"Lane_0msal78_di\" bpmnElement=\"Lane_0msal78\" isHorizontal=\"true\">\n        <dc:Bounds x=\"200\" y=\"460\" width=\"1470\" height=\"180\" \/>\n        <bpmndi:BPMNLabel \/>\n      <\/bpmndi:BPMNShape>\n      <bpmndi:BPMNShape id=\"Lane_17cnixn_di\" bpmnElement=\"Lane_17cnixn\" isHorizontal=\"true\">\n        <dc:Bounds x=\"200\" y=\"80\" width=\"1470\" height=\"380\" \/>\n        <bpmndi:BPMNLabel \/>\n      <\/bpmndi:BPMNShape>\n      <bpmndi:BPMNShape id=\"Activity_0968bn9_di\" bpmnElement=\"get_quote\">\n        <dc:Bounds x=\"292\" y=\"160\" width=\"100\" height=\"80\" \/>\n        <bpmndi:BPMNLabel \/>\n      <\/bpmndi:BPMNShape>\n      <bpmndi:BPMNShape id=\"Gateway_0wb5bp8_di\" bpmnElement=\"Gateway_0wb5bp8\" isMarkerVisible=\"true\">\n        <dc:Bounds x=\"447\" y=\"175\" width=\"50\" height=\"50\" \/>\n      <\/bpmndi:BPMNShape>\n      <bpmndi:BPMNShape id=\"_BPMNShape_StartEvent_2\" bpmnElement=\"StartEvent_1\">\n        <dc:Bounds x=\"224\" y=\"182\" width=\"36\" height=\"36\" \/>\n      <\/bpmndi:BPMNShape>\n      <bpmndi:BPMNShape id=\"Gateway_0dhgs26_di\" bpmnElement=\"Gateway_0dhgs26\" isMarkerVisible=\"true\">\n        <dc:Bounds x=\"727\" y=\"175\" width=\"50\" height=\"50\" \/>\n      <\/bpmndi:BPMNShape>\n      <bpmndi:BPMNShape id=\"Activity_16ms54p_di\" bpmnElement=\"create_order\">\n        <dc:Bounds x=\"592\" y=\"160\" width=\"100\" height=\"80\" \/>\n        <bpmndi:BPMNLabel \/>\n      <\/bpmndi:BPMNShape>\n      <bpmndi:BPMNShape id=\"Gateway_1dfxj94_di\" bpmnElement=\"Gateway_1dfxj94\" isMarkerVisible=\"true\">\n        <dc:Bounds x=\"1045\" y=\"175\" width=\"50\" height=\"50\" \/>\n      <\/bpmndi:BPMNShape>\n      <bpmndi:BPMNShape id=\"Activity_0jqqc3u_di\" bpmnElement=\"review_order\">\n        <dc:Bounds x=\"852\" y=\"300\" width=\"100\" height=\"80\" \/>\n        <bpmndi:BPMNLabel \/>\n      <\/bpmndi:BPMNShape>\n      <bpmndi:BPMNShape id=\"Gateway_1gdodjg_di\" bpmnElement=\"Gateway_1gdodjg\" isMarkerVisible=\"true\">\n        <dc:Bounds x=\"1045\" y=\"315\" width=\"50\" height=\"50\" \/>\n      <\/bpmndi:BPMNShape>\n      <bpmndi:BPMNShape id=\"Activity_0w48bwr_di\" bpmnElement=\"execute_order\">\n        <dc:Bounds x=\"1170\" y=\"160\" width=\"100\" height=\"80\" \/>\n        <bpmndi:BPMNLabel \/>\n      <\/bpmndi:BPMNShape>\n      <bpmndi:BPMNShape id=\"Event_1p1wu6u_di\" bpmnElement=\"send_execute_order_notification\">\n        <dc:Bounds x=\"1352\" y=\"182\" width=\"36\" height=\"36\" \/>\n        <bpmndi:BPMNLabel>\n          <dc:Bounds x=\"1331\" y=\"225\" width=\"82\" height=\"27\" \/>\n        <\/bpmndi:BPMNLabel>\n      <\/bpmndi:BPMNShape>\n      <bpmndi:BPMNShape id=\"Event_0xlvmmk_di\" bpmnElement=\"Event_0xlvmmk\">\n        <dc:Bounds x=\"1502\" y=\"182\" width=\"36\" height=\"36\" \/>\n      <\/bpmndi:BPMNShape>\n      <bpmndi:BPMNShape id=\"Event_0p8ducq_di\" bpmnElement=\"Event_0p8ducq\">\n        <dc:Bounds x=\"512\" y=\"692\" width=\"36\" height=\"36\" \/>\n      <\/bpmndi:BPMNShape>\n      <bpmndi:BPMNShape id=\"Event_0au5mn2_di\" bpmnElement=\"Event_0kp6o5d\">\n        <dc:Bounds x=\"272\" y=\"692\" width=\"36\" height=\"36\" \/>\n      <\/bpmndi:BPMNShape>\n      <bpmndi:BPMNShape id=\"Activity_1cu4qbj_di\" bpmnElement=\"call_service_notification\">\n        <dc:Bounds x=\"360\" y=\"670\" width=\"100\" height=\"80\" \/>\n        <bpmndi:BPMNLabel \/>\n      <\/bpmndi:BPMNShape>\n      <bpmndi:BPMNShape id=\"Event_0r6g7w4_di\" bpmnElement=\"not_interesting_trade\">\n        <dc:Bounds x=\"602\" y=\"532\" width=\"36\" height=\"36\" \/>\n        <bpmndi:BPMNLabel>\n          <dc:Bounds x=\"585\" y=\"575\" width=\"71\" height=\"27\" \/>\n        <\/bpmndi:BPMNLabel>\n      <\/bpmndi:BPMNShape>\n      <bpmndi:BPMNShape id=\"Event_19euquz_di\" bpmnElement=\"Event_19euquz\">\n        <dc:Bounds x=\"1492\" y=\"532\" width=\"36\" height=\"36\" \/>\n      <\/bpmndi:BPMNShape>\n      <bpmndi:BPMNEdge id=\"Flow_10k717e_di\" bpmnElement=\"Flow_10k717e\">\n        <di:waypoint x=\"260\" y=\"200\" \/>\n        <di:waypoint x=\"292\" y=\"200\" \/>\n      <\/bpmndi:BPMNEdge>\n      <bpmndi:BPMNEdge id=\"Flow_1u17jic_di\" bpmnElement=\"Flow_1u17jic\">\n        <di:waypoint x=\"392\" y=\"200\" \/>\n        <di:waypoint x=\"447\" y=\"200\" \/>\n      <\/bpmndi:BPMNEdge>\n      <bpmndi:BPMNEdge id=\"Flow_0ohyry0_di\" bpmnElement=\"Flow_0ohyry0\">\n        <di:waypoint x=\"497\" y=\"200\" \/>\n        <di:waypoint x=\"592\" y=\"200\" \/>\n        <bpmndi:BPMNLabel>\n          <dc:Bounds x=\"489\" y=\"163\" width=\"85\" height=\"14\" \/>\n        <\/bpmndi:BPMNLabel>\n      <\/bpmndi:BPMNEdge>\n      <bpmndi:BPMNEdge id=\"Flow_149zwbd_di\" bpmnElement=\"Flow_149zwbd\">\n        <di:waypoint x=\"472\" y=\"225\" \/>\n        <di:waypoint x=\"472\" y=\"550\" \/>\n        <di:waypoint x=\"602\" y=\"550\" \/>\n        <bpmndi:BPMNLabel>\n          <dc:Bounds x=\"452\" y=\"397\" width=\"71\" height=\"27\" \/>\n        <\/bpmndi:BPMNLabel>\n      <\/bpmndi:BPMNEdge>\n      <bpmndi:BPMNEdge id=\"Flow_1j414xk_di\" bpmnElement=\"Flow_1j414xk\">\n        <di:waypoint x=\"692\" y=\"200\" \/>\n        <di:waypoint x=\"727\" y=\"200\" \/>\n      <\/bpmndi:BPMNEdge>\n      <bpmndi:BPMNEdge id=\"Flow_1g7cftd_di\" bpmnElement=\"Flow_1g7cftd\">\n        <di:waypoint x=\"777\" y=\"200\" \/>\n        <di:waypoint x=\"1045\" y=\"200\" \/>\n        <bpmndi:BPMNLabel>\n          <dc:Bounds x=\"872\" y=\"156\" width=\"55\" height=\"27\" \/>\n        <\/bpmndi:BPMNLabel>\n      <\/bpmndi:BPMNEdge>\n      <bpmndi:BPMNEdge id=\"Flow_0wrkze0_di\" bpmnElement=\"Flow_0wrkze0\">\n        <di:waypoint x=\"752\" y=\"225\" \/>\n        <di:waypoint x=\"752\" y=\"340\" \/>\n        <di:waypoint x=\"852\" y=\"340\" \/>\n        <bpmndi:BPMNLabel>\n          <dc:Bounds x=\"671\" y=\"308\" width=\"78\" height=\"14\" \/>\n        <\/bpmndi:BPMNLabel>\n      <\/bpmndi:BPMNEdge>\n      <bpmndi:BPMNEdge id=\"Flow_120zqdy_di\" bpmnElement=\"Flow_120zqdy\">\n        <di:waypoint x=\"1070\" y=\"365\" \/>\n        <di:waypoint x=\"1070\" y=\"410\" \/>\n        <di:waypoint x=\"642\" y=\"410\" \/>\n        <di:waypoint x=\"642\" y=\"240\" \/>\n        <bpmndi:BPMNLabel>\n          <dc:Bounds x=\"746\" y=\"392\" width=\"80\" height=\"14\" \/>\n        <\/bpmndi:BPMNLabel>\n      <\/bpmndi:BPMNEdge>\n      <bpmndi:BPMNEdge id=\"Flow_1cficwu_di\" bpmnElement=\"Flow_1cficwu\">\n        <di:waypoint x=\"1095\" y=\"200\" \/>\n        <di:waypoint x=\"1170\" y=\"200\" \/>\n      <\/bpmndi:BPMNEdge>\n      <bpmndi:BPMNEdge id=\"Flow_1dh6ro4_di\" bpmnElement=\"Flow_1dh6ro4\">\n        <di:waypoint x=\"1070\" y=\"315\" \/>\n        <di:waypoint x=\"1070\" y=\"225\" \/>\n        <bpmndi:BPMNLabel>\n          <dc:Bounds x=\"1083\" y=\"263\" width=\"53\" height=\"14\" \/>\n        <\/bpmndi:BPMNLabel>\n      <\/bpmndi:BPMNEdge>\n      <bpmndi:BPMNEdge id=\"Flow_12vfzz9_di\" bpmnElement=\"Flow_12vfzz9\">\n        <di:waypoint x=\"952\" y=\"340\" \/>\n        <di:waypoint x=\"1045\" y=\"340\" \/>\n      <\/bpmndi:BPMNEdge>\n      <bpmndi:BPMNEdge id=\"Flow_1tbqh4z_di\" bpmnElement=\"Flow_1tbqh4z\">\n        <di:waypoint x=\"1270\" y=\"200\" \/>\n        <di:waypoint x=\"1352\" y=\"200\" \/>\n      <\/bpmndi:BPMNEdge>\n      <bpmndi:BPMNEdge id=\"Flow_1r7xmh4_di\" bpmnElement=\"Flow_1r7xmh4\">\n        <di:waypoint x=\"1388\" y=\"200\" \/>\n        <di:waypoint x=\"1502\" y=\"200\" \/>\n      <\/bpmndi:BPMNEdge>\n      <bpmndi:BPMNEdge id=\"Flow_1x4iu4y_di\" bpmnElement=\"Flow_1x4iu4y\">\n        <di:waypoint x=\"638\" y=\"550\" \/>\n        <di:waypoint x=\"1492\" y=\"550\" \/>\n      <\/bpmndi:BPMNEdge>\n      <bpmndi:BPMNEdge id=\"Flow_1a1pcj8_di\" bpmnElement=\"Flow_1a1pcj8\">\n        <di:waypoint x=\"460\" y=\"710\" \/>\n        <di:waypoint x=\"512\" y=\"710\" \/>\n      <\/bpmndi:BPMNEdge>\n      <bpmndi:BPMNEdge id=\"Flow_01tx2mt_di\" bpmnElement=\"Flow_01tx2mt\">\n        <di:waypoint x=\"308\" y=\"710\" \/>\n        <di:waypoint x=\"360\" y=\"710\" \/>\n      <\/bpmndi:BPMNEdge>\n    <\/bpmndi:BPMNPlane>\n  <\/bpmndi:BPMNDiagram>\n<\/bpmn:definitions>\n';
+      importXML(diagramXML);
+
+    })(window.BpmnJS, window.jQuery);
+  </script>
+</body>
+</html>
